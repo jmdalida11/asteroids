@@ -1,0 +1,419 @@
+<html>
+<body>
+	
+	<script>
+		
+		var canvas = document.createElement('canvas');
+		var context = canvas.getContext('2d');
+		canvas.width = 400;
+		canvas.height = 400;
+		canvas.style.border = '1px solid black';
+		
+		document.body.append(canvas);
+		
+		var spaceship;
+		var bullets = [];
+		var asteroids = [];
+		var score = 0;
+		var enemyNum = 5;
+		var gameOver = false;
+		
+		function init(){
+			spaceship = new Spaceship(canvas.width/2, canvas.height/2, canvas);
+			spawnEnemy();
+			
+		}
+		
+		function spawnEnemy(){
+			
+			for(var i=0; i<enemyNum; i++){
+				var eX = Math.random()*canvas.width;
+				var eY = Math.random()*canvas.height;
+				
+				var dis = Math.sqrt(Math.pow(spaceship.x - eX, 2) + Math.pow(spaceship.y - eY, 2));
+				
+				while(dis < 100){
+					eX = Math.random()*canvas.width;
+					eY = Math.random()*canvas.height;
+					dis = Math.sqrt(Math.pow(spaceship.x - eX, 2) + Math.pow(spaceship.y - eY, 2));
+				}
+				asteroids.push(new Asteroid(eX, eY));
+			}
+			enemyNum++;
+		}
+		
+		
+		function update(){
+			spaceship.update();
+			spaceship.wrapAround(canvas);
+			for(var i=0; i<bullets.length; i++){
+				bullets[i].update();
+				if(bullets[i].isOffScreen(canvas.width, canvas.height)){
+					bullets.splice(i, 1);
+					i--;	
+				}
+			}
+			for(var i=0; i<asteroids.length; i++){
+				asteroids[i].update();
+				asteroids[i].wrapAround(canvas);
+				
+				if(spaceship.hitByAsteroid(asteroids[i])){
+					spaceship.destroy();
+					gameOver = true;
+				}
+				
+				for(var b=0; b<bullets.length; b++){
+				
+					if(asteroids[i].hitByBullet(bullets[b])){
+						bullets.splice(b, 1);
+						b--;
+						score++;
+						if(asteroids[i].size >= 0){
+							var newAsteroid = new Asteroid(asteroids[i].x, asteroids[i].y);
+							asteroids.push(newAsteroid);
+							newAsteroid.size = asteroids[i].size;
+							newAsteroid.moveX = -1 * asteroids[i].moveX;
+							newAsteroid.moveY = -1 * asteroids[i].moveY;
+							newAsteroid.resize();
+						}
+					}
+				}
+				if(asteroids[i].size < 0){
+					asteroids.splice(i, 1);
+					i--;
+				}
+			}
+			if(asteroids.length == 0){
+				spawnEnemy();
+			}
+		}
+		
+		function render(){
+			
+			context.clearRect(0, 0, canvas.width, canvas.height);
+			context.fillStyle = 'yellow';
+			context.fillRect(0, 0, canvas.width, canvas.height);
+			for(var i=0; i<bullets.length; i++){
+				bullets[i].render(context);
+			}
+			
+			spaceship.render(context);
+			for(var i=0; i<asteroids.length; i++){
+				asteroids[i].render(context);
+			}
+			
+			context.fillStyle = "red";
+			if(gameOver){
+				context.font = "30px Georgia";
+				context.fillText("Game Over!", canvas.width/2 - 90 , canvas.height/2-50);
+				context.fillText("Your score is : " + score, canvas.width/2 - 100 , canvas.height/2-25);
+			}else{
+				context.font = "20px Georgia";
+				context.fillText("Score : " + score, 50 , 50);
+			}
+			
+		}
+		
+		
+		window.addEventListener('keydown', function(e){
+			//console.log(e.keyCode);
+			if(gameOver) return;
+			if(e.keyCode == 38){
+				spaceship.move = true;
+			}
+		
+			if(e.keyCode == 39){
+				spaceship.turnRight = true;
+			}else if(e.keyCode == 37){
+				spaceship.turnLeft = true;
+			}
+		});
+		
+		window.addEventListener('keyup', function(e){
+			if(gameOver) return;
+			if(e.keyCode == 38){
+				spaceship.move = false;
+			}
+		
+			if(e.keyCode == 39){
+				spaceship.turnRight = false;
+			}else if(e.keyCode == 37){
+				spaceship.turnLeft = false;
+			}
+			
+			if(e.keyCode == 32){
+				bullets.push(new Bullet(spaceship.x, spaceship.y, spaceship.radians));
+			}
+			
+		});
+		
+		init();
+		setInterval(function(){
+			update();
+			render();
+		}, 30/1000);
+		
+		
+		function Spaceship(x, y){
+			
+			this.x = x;
+			this.y = y;
+			this.radians = Math.PI * 2 - Math.PI / 2;
+			this.size = 20;
+			this.rotationSpeed = 0.015;
+			this.vel = 0;
+			this.acceleration = 0.015;
+			this.MAX_VEL = 1;
+			
+			
+			this.turnLeft = false;
+			this.turnRight = false;
+			this.move = false;
+			
+			this.spacex = [];
+			this.spacey = [];
+			
+				
+			this.setSides = function(){
+			
+				this.spacex[0] = this.x + Math.cos(this.radians) * this.size;
+				this.spacey[0] = this.y + Math.sin(this.radians) * this.size;
+				
+				this.spacex[1] = this.x + Math.cos(this.radians - Math.PI * 4 / 5) * this.size;
+				this.spacey[1] = this.y + Math.sin(this.radians - Math.PI * 4 / 5) * this.size;
+				
+				this.spacex[2] = this.x + Math.cos(this.radians + Math.PI ) * this.size;
+				this.spacey[2] = this.y + Math.sin(this.radians + Math.PI) * this.size;
+				
+				this.spacex[3] = this.x + Math.cos(this.radians + Math.PI * 4 / 5) * this.size;
+				this.spacey[3] = this.y + Math.sin(this.radians + Math.PI * 4 / 5) * this.size;
+				
+			}
+			
+			this.setSides();
+			
+			this.wrapAround = function(screen){
+				if(this.x < 0)
+					this.x = screen.width;
+				else if(this.x > screen.width)
+					this.x = 0;
+				
+				if(this.y < 0)
+					this.y = screen.height;
+				else if(this.y > screen.height)
+					this.y = 0;
+			}
+			
+			this.destroy = function(){
+				this.move = false;
+				this.turnLeft = false;
+				this.turnRight = false;
+			}
+			
+			this.hitByAsteroid = function(asteroid){
+				
+				var disx = this.x - asteroid.x;
+				var disy = this.y - asteroid.y;
+				
+				var distance = Math.sqrt(disx * disx + disy * disy);
+				
+				return distance < this.size + asteroid.radius;
+			}
+			
+			this.update = function(){
+			
+			
+				if(this.move){
+					this.vel += this.acceleration;
+					
+					if(this.vel > this.MAX_VEL){
+						this.vel = this.MAX_VEL;
+					}
+				}
+				
+				this.x = this.x + Math.cos(this.radians) * this.vel;
+				this.y = this.y + Math.sin(this.radians) * this.vel;
+				
+				if(this.vel > 0.005){
+					this.vel *= 0.99;
+				}
+				
+				
+			
+				if(this.turnRight){
+					this.radians += this.rotationSpeed;
+				}else if(this.turnLeft){
+					this.radians -= this.rotationSpeed;
+				}
+				
+				this.setSides();
+			}
+			
+			this.render = function(context){
+				
+				for(var i=0, j=this.spacex.length-1; i<this.spacex.length; j = i++){
+					context.beginPath();
+					context.moveTo(this.spacex[i], this.spacey[i]);
+					context.lineTo(this.spacex[j], this.spacey[j]);
+					context.stroke();
+				}
+				
+			}
+			
+			
+		}
+		
+		function Bullet(x, y, radians){
+			this.x = x;
+			this.y = y;
+			this.vel = 5;
+			this.radians = radians;
+			this.size = 5;
+			
+			this.update = function(){
+				this.x = this.x + Math.cos(this.radians) * this.vel;
+				this.y = this.y + Math.sin(this.radians) * this.vel;
+			}
+			
+			
+			
+			this.render = function(context){
+				context.fillStyle = 'black';
+				context.fillRect(this.x - this.size/2, this.y - this.size/2, this.size, this.size);
+			}
+			
+			this.isOffScreen = function(x, y){
+				return this.x < 0 || this.x > x || this.y < 0 || this.y > y;
+			}
+			
+		}
+		
+		function Asteroid(x, y){
+			this.x = x;
+			this.y = y;
+			this.radians = 0;
+			this.size = Math.floor(Math.random() * 3);
+			this.rotationSpeed = 0.005;
+			
+			if(this.size == 2){
+				this.radius = 60;
+				this.sides = 12;
+			}else if(this.size == 1){
+				this.radius = 40;
+				this.sides = 10;
+			}else if(this.size == 0){
+				this.radius = 20;
+				this.sides = 8;
+			}
+			
+			this.spacex = [];
+			this.spacey = [];
+			this.r = [];
+			var movements = [0.10,-0.10];
+			this.moveX = movements[Math.floor(Math.random()*2)];
+			this.moveY = movements[Math.floor(Math.random()*2)];
+			
+			this.resize = function(){
+				if(this.size == 1){
+					this.radius = 40;
+					this.sides = 10;
+				}else if(this.size == 0){
+					this.radius = 20;
+					this.sides = 8;
+				}
+				this.spacex = [];
+				this.spacey = [];
+				this.r = [];
+				this.setPos();
+			}
+			
+			this.hitByBullet = function(bullet){
+				
+				var disx = this.x - bullet.x;
+				var disy = this.y - bullet.y;
+				
+				var distance = Math.sqrt(disx * disx + disy * disy);
+				
+				if(distance < this.radius){
+					this.size--;
+					this.resize();
+					return true;
+				}
+				return false;
+			}
+			
+			
+			this.wrapAround = function(screen){
+				if(this.x < 0)
+					this.x = screen.width;
+				else if(this.x > screen.width)
+					this.x = 0;
+				
+				if(this.y < 0)
+					this.y = screen.height;
+				else if(this.y > screen.height)
+					this.y = 0;
+			}
+			
+			this.setPos = function(){
+				var pos = 0;
+				for(var i=0; i<this.sides; i++){
+					var r =(Math.random() * (this.radius / 2)) + this.radius / 2;
+					this.spacex[i] = this.x + Math.cos(this.radians + pos) * r; 
+					this.spacey[i] = this.y + Math.sin(this.radians + pos) * r;
+					this.r[i] = r;
+					pos += Math.PI * 2 / this.sides;
+				}
+			}
+			this.setPos();
+			this.update = function(){
+				
+				var pos = 0;
+				for(var i=0; i<this.sides; i++){
+					this.spacex[i] = this.x + Math.cos(this.radians + pos) * this.r[i]; 
+					this.spacey[i] = this.y + Math.sin(this.radians + pos) * this.r[i];
+					pos += Math.PI * 2 / this.sides;
+				}
+				if(this.radians > Math.PI * 2){
+					this.radians = 0;
+				}
+				
+				if(this.size == 2){
+					this.moveX = this.moveX > 0 ? 0.05 : -0.05;
+					this.moveY = this.moveY > 0 ? 0.05 : -0.05;
+					this.rotationSpeed = 0.001;
+				}	
+				if(this.size == 1){
+					this.moveX = this.moveY > 0 ? 0.08 : -0.08;
+					this.moveY = this.moveY > 0 ? 0.08 : -0.08;
+					this.rotationSpeed = 0.003;
+				}	
+				this.radians += this.rotationSpeed;
+				this.x += this.moveX;
+				this.y += this.moveY;
+				
+			}
+			
+			this.render = function(context){
+				for(var i=0, j=this.spacex.length-1; i<this.spacex.length; j = i++){
+					context.beginPath();
+					context.moveTo(this.spacex[i], this.spacey[i]);
+					context.lineTo(this.spacex[j], this.spacey[j]);
+					context.stroke();
+				}
+			}
+			
+		}
+		
+	</script>
+	
+</body>
+</html>
+
+
+
+
+
+
+
+
